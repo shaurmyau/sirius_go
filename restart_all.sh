@@ -22,7 +22,7 @@ kubectl apply -f k8s/app-deployment.yaml
 kubectl apply -f k8s/app-service.yaml
 
 echo "==> Ожидаю готовности подов..."
-kubectl wait --for=condition=Ready pods --all -n go-app --timeout=120s
+kubectl wait --for=condition=Ready pods --all -n go-app --timeout=20s
 
 echo "==> Запускаю проброс порта..."
 kubectl port-forward -n go-app service/go-server-service 5000:80 &

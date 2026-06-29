@@ -1,0 +1,103 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: dbuser
+      POSTGRES_PASSWORD: dbpass
+      POSTGRES_DB: exam
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: s3user
+      MINIO_ROOT_PASSWORD: s3pass123
+      MINIO_DOMAIN: localhost,minio
+      MINIO_NOTIFY_WEBHOOK_ENABLE_1: "on"
+      MINIO_NOTIFY_WEBHOOK_ENDPOINT_1: "http://img-service:8081/img/process"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  createbuckets:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set local http://minio:9000 s3user s3pass123;
+      mc mb -p local/upload local/original local/large local/medium local/small;
+      mc anonymous set public local/original;
+      mc anonymous set public local/large;
+      mc anonymous set public local/medium;
+      mc anonymous set public local/small;
+      mc event add local/upload arn:minio:sqs::1:webhook --event put;
+      exit 0;
+      "
+
+  api-service:
+    build: ./api-service
+    ports:
+      - "8080:8080"
+    environment:
+      S3_HOST: minio
+      S3_PORT: "9000"
+      S3_USER: s3user
+      S3_PASS: s3pass123
+      # S3_EXTERNAL_URL: http://localhost:9000
+      # S3_EXTERNAL_URL: ""
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: dbuser
+      DB_PASS: dbpass
+      DB_NAME: exam
+      JWKS_URL: https://id.klsh.ru/realms/sirius/protocol/openid-connect/certs
+    depends_on:
+      - postgres
+      - minio
+
+  img-service:
+    build: ./img-service
+    ports:
+      - "8081:8081"
+    environment:
+      S3_HOST: minio
+      S3_PORT: "9000"
+      S3_USER: s3user
+      S3_PASS: s3pass123
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: dbuser
+      DB_PASS: dbpass
+      DB_NAME: exam
+      PUSH_ENDPOINT: http://push-service:8082/notify
+    depends_on:
+      - postgres
+      - minio
+
+  push-service:
+    build: ./push-service
+    ports:
+      - "8082:8082"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: dbuser
+      DB_PASS: dbpass
+      DB_NAME: exam
+    depends_on:
+      - postgres
+
+volumes:
+  pg_data:
+  minio_data:

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: img-service
+  namespace: sirius
+spec:
+  selector:
+    app: img-service
+  ports:
+    - port: 8081
+      targetPort: 8081

@@ -1,0 +1,15 @@
+--- a/img-service/internal/queue/queue.go
++++ b/img-service/internal/queue/queue.go
+@@ -98,10 +98,9 @@
+ 	}
+ 
+ 	// Получаем оригинальное имя файла из БД
+-	var originalName string
+-	err = q.db.pool.QueryRow(ctx, "SELECT name FROM public.image WHERE id=$1", id).Scan(&originalName)
++	originalName, err := q.db.GetFileName(ctx, id)
+ 	if err != nil {
+-		fail(fmt.Errorf("get original name: %w", err))
++		fail(fmt.Errorf("get original name: %w", err))
+ 		return
+ 	}
+ 

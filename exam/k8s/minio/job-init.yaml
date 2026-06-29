@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  namespace: sirius
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-minio
+          image: busybox
+          command: ["sh", "-c", "until wget -qO- http://minio:9000/minio/health/ready; do sleep 3; done"]
+      containers:
+        - name: mc
+          image: minio/mc:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mc alias set local http://minio:9000 s3user s3pass123
+              mc mb -p local/upload local/original local/large local/medium local/small
+              mc anonymous set public local/original
+              mc anonymous set public local/large
+              mc anonymous set public local/medium
+              mc anonymous set public local/small
+              mc event add local/upload arn:minio:sqs::1:webhook --event put
+              echo "Minio init done"
